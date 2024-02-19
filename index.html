@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1 user-scalable=no">
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <title>Badge Maker</title>
+    <style>
+        input {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <center>
+        <main class="container">
+            <h1>Badge Porte Clés</h1>
+            <div style="background-color: white;">
+                <div>&nbsp</div>
+                <center id="render"></center>
+                <div>&nbsp</div>
+            </div>
+            <input id="text_input" placeholder="Texte" maxlength="41" onkeyup="textWrite(this)" type="text">
+            <button id="start-recognition">Reconnaissance Vocale</button>
+            <h1><a id="link" download="badge.dxf" href="#">Télécharger</a></h1>
+        </main>
+    </center>
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/makerjs@0/target/js/browser.maker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bezier-js@2/bezier.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/opentype.js@0/dist/opentype.js"></script>
+<script>
+    var makerjs = require('makerjs');
+    //current_text = "LABSud";
+    current_text = "12345678912345678912345678912345678912345"
+    document.getElementById("text_input").value = current_text;
+    //Dirty Fix for border not appearing
+    document.body.style.zoom = 1.1
+    name_x = 9.8;
+    function badge(text) {
+        console.log("text_length:" + text.length);
+
+        if (text.length >= 15 && text.length < 18) {
+            console.log("1 OFFSET");
+            font_size = 7;
+            x_offset = 3;
+            y_offset = 0.4;
+        } else if (text.length >= 18 && text.length < 21) {
+            console.log("2 OFFSET");
+            font_size = 6;
+            x_offset = 3.5;
+            y_offset = 0.7;
+        } else if (text.length >= 21 && text.length < 26) {
+            console.log("3 OFFSET");
+            font_size = 5;
+            x_offset = 4;
+            y_offset = 1.1;
+        } else if (text.length >= 26 && text.length < 32) {
+            console.log("4 OFFSET");
+            font_size = 4;
+            x_offset = 4;
+            y_offset = 1.5;
+        } else if (text.length >= 32) {
+            console.log("5 OFFSET");
+            font_size = 3;
+            x_offset = 4;
+            y_offset = 1.8;
+        } else {
+            font_size = 8;
+            x_offset = 0;
+            y_offset = 0;
+        }
+        console.log("font_size:" + font_size);
+        //load a font asynchronously
+        opentype.load('fonts/Rawengulksans/Rawengulksans-MMOe.ttf', function (err, font) {
+
+            if (err) {
+                document.getElementById('render-text').innerText = 'the font could not be loaded :(';
+            } else {
+
+                // Generation
+                var badge_form = {
+                    models: {
+                        name: new makerjs.models.Text(font, text, font_size),
+                        border: new makerjs.models.RoundRectangle(60, 25, 10),
+                    },
+                    paths: {
+                        circle: new makerjs.paths.Circle([5, 12.5], 2)
+                    }
+                }
+                // Modification
+                badge_form.units = makerjs.unitType.Millimeter;
+                badge_form.models.name.layer = "red";
+
+                dimension_name = makerjs.measure.modelExtents(badge_form.models.name)
+                size = 62.5 + x_offset;
+                origin_x = (size - dimension_name.width) / 2
+                console.log(origin_x);
+                badge_form.models.name.origin = [origin_x, name_x + y_offset];
+
+                //Width MAX for text = 49.6
+
+                // Export
+                var dxf = makerjs.exporter.toDXF(badge_form);
+                dxf_data = `data:application/octet-stream;base64,${btoa(dxf)}`;
+                console.log(badge_form);
+
+                document.getElementById('link').href = dxf_data;
+
+                // Render
+                //badge_form_svg = makerjs.model.scale(badge_form, 2);
+                var svg = makerjs.exporter.toSVG(badge_form);
+                document.getElementById('render').innerHTML = svg;
+            }
+        });
+    }
+
+    badge(current_text);
+
+
+    function textWrite(obj) {
+        //console.log("Update")
+        if (current_text != obj.value) {
+            //console.log("Redraw");
+            current_text = obj.value;
+            badge(obj.value);
+
+        }
+
+    }
+
+    // Vérifie si l'API Web Speech est supportée
+    if ('webkitSpeechRecognition' in window) {
+        // Création d'une nouvelle instance de l'objet webkitSpeechRecognition
+        var recognition = new webkitSpeechRecognition();
+        //recognition.lang = 'fr-FR'
+        // Configuration de quelques options
+        recognition.continuous = false; // Ne pas continuer à écouter indéfiniment
+        recognition.interimResults = false; // Ne retourne que les résultats finaux
+
+        // Définir ce qui se passe quand la reconnaissance vocale retourne un résultat
+        recognition.onresult = function (event) {
+            var transcript = event.results[0][0].transcript; // Récupère le texte reconnu
+            document.getElementById('start-recognition').setAttribute("disabled", false);
+            document.getElementById("text_input").value = transcript;
+            badge(transcript);
+            current_text = transcript;
+        };
+
+        // Gérer les erreurs
+        recognition.onerror = function (event) {
+            alert("Erreur de reconnaissance vocale: ", event.error);
+        };
+
+        // Trouver le bouton dans le DOM et ajouter un gestionnaire d'événement pour démarrer la reconnaissance vocale
+        document.getElementById('start-recognition').addEventListener('click', function () {
+            document.getElementById('start-recognition').setAttribute("disabled", true);
+            recognition.start(); // Démarrer la reconnaissance vocale
+        });
+    } else {
+        console.log("La reconnaissance vocale n'est pas prise en charge par ce navigateur.");
+    }
+
+
+</script>
+
+</html>
